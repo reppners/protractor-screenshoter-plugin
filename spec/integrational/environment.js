@@ -13,5 +13,5 @@ module.exports = {
             (process.env.TEST_BROWSER_VERSION || 'ANY')
     },
 
-    debug: true
+    debug: (process.env.TEST_DEBUG || false)
 };
