@@ -98,6 +98,29 @@ protractorUtil.takeLogs = function(context, report) {
     protractorUtil.forEachBrowser(takeLog);
 };
 
+protractorUtil.takeRawHtml = function(context, report) {
+    function takeInstanceRawHtml(browserInstance, browserName, cb) {
+        var snapshotFile = 'htmls/' + uuid.v1() + '.html';
+        protractorUtil.logDebug('Taking raw HTML ' + snapshotFile + ' from browser instance ' + browserName);
+        var finalFile = context.config.screenshotPath + '/' + snapshotFile;
+
+        browserInstance.getPageSource().then(function(html) {
+                fse.writeFile(finalFile, html, 'utf8', function(err) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    report(snapshotFile, browserName, finalFile, browserInstance, cb);
+                });
+            },
+            function(err) {
+                console.warn('Error in browser instance ' + browserName + ' while taking the raw html: ' + finalFile + ' - ' + err.message);
+                cb(err);
+            });
+    }
+
+    protractorUtil.forEachBrowser(takeInstanceRawHtml);
+};
+
 protractorUtil.takeScreenshotOnExpectDone = function(context) {
     //Takes screen shot for expect failures
     var originalAddExpectationResult = jasmine.Spec.prototype.addExpectationResult;
@@ -108,6 +131,7 @@ protractorUtil.takeScreenshotOnExpectDone = function(context) {
 
         expectation.screenshots = [];
         expectation.logs = [];
+        expectation.htmls = [];
         expectation.when = now.toDate();
 
         if (!passed && context.config.pauseOn === 'failure') {
@@ -118,15 +142,18 @@ protractorUtil.takeScreenshotOnExpectDone = function(context) {
 
         var makeScreenshotsFromEachBrowsers = false;
         var makeAsciiLog = false;
+        var makeHtmlSnapshot = false;
         if (protractorUtil.test) {
             if (passed) {
                 protractorUtil.test.passedExpectations.push(expectation);
                 makeScreenshotsFromEachBrowsers = context.config.screenshotOnExpect === 'failure+success';
                 makeAsciiLog = context.config.imageToAscii === 'failure+success';
+                makeHtmlSnapshot = context.config.htmlOnExpect === 'failure+success';
             } else {
                 protractorUtil.test.failedExpectations.push(expectation);
                 makeScreenshotsFromEachBrowsers = context.config.screenshotOnExpect === 'failure+success' || context.config.screenshotOnExpect === 'failure';
                 makeAsciiLog = context.config.imageToAscii === 'failure+success' || context.config.imageToAscii === 'failure';
+                makeHtmlSnapshot = context.config.htmlOnExpect === 'failure+success' || context.config.htmlOnExpect === 'failure';
             }
         } else {
             console.warn('Calling addExpectationResult before specStarted!');
@@ -160,6 +187,22 @@ protractorUtil.takeScreenshotOnExpectDone = function(context) {
                 }
             });
         }
+
+        if (makeHtmlSnapshot) {
+            protractorUtil.takeRawHtml(context, function(filename, browserName, finalFile, browserInstance, done) {
+                expectation.htmls.push({
+                    file: filename,
+                    browser: browserName,
+                    when: new Date()
+                });
+                if (context.config.writeReportFreq === 'asap') {
+                    protractorUtil.writeReport(context, done);
+                } else {
+                    done();
+                }
+            });
+        }
+
         if (context.config.withLogs) {
             protractorUtil.takeLogs(context, function(logs, browserName, done) {
                 expectation.logs.push({
@@ -178,13 +221,16 @@ protractorUtil.takeScreenshotOnExpectDone = function(context) {
 };
 
 
-protractorUtil.takeScreenshotOnSpecDone = function(result, context, test) {
+protractorUtil.takeOnSpecDone = function(result, context, test) {
 
     var makeScreenshotsFromEachBrowsers = false;
+    var makeHtmlSnapshot = false;
     if (result.failedExpectations.length === 0) {
         makeScreenshotsFromEachBrowsers = context.config.screenshotOnSpec === 'failure+success';
+        makeHtmlSnapshot = context.config.htmlOnSpec === 'failure+success';
     } else {
         makeScreenshotsFromEachBrowsers = context.config.screenshotOnSpec === 'failure+success' || context.config.screenshotOnSpec === 'failure';
+        makeHtmlSnapshot = context.config.htmlOnSpec === 'failure+success' || context.config.htmlOnSpec === 'failure';
     }
     if (makeScreenshotsFromEachBrowsers) {
         protractorUtil.takeScreenshot(context, function(file, browserName, finalFile, browserInstance, done) {
@@ -200,6 +246,22 @@ protractorUtil.takeScreenshotOnSpecDone = function(result, context, test) {
             }
         });
     }
+
+    if (makeHtmlSnapshot) {
+        protractorUtil.takeRawHtml(context, function(file, browserName, finalFile, browserInstance, done) {
+            test.specHtmls.push({
+                file: file,
+                browser: browserName,
+                when: new Date()
+            });
+            if (context.config.writeReportFreq === 'asap' || context.config.writeReportFreq === 'spec') {
+                protractorUtil.writeReport(context, done);
+            } else {
+                done();
+            }
+        });
+    }
+
     if (context.config.withLogs) {
         protractorUtil.takeLogs(context, function(logs, browserName, done) {
             test.specLogs.push({
@@ -320,15 +382,14 @@ protractorUtil.registerJasmineReporter = function(context) {
                 start: moment(),
                 specScreenshots: [],
                 specLogs: [],
+                specHtmls: [],
                 failedExpectations: [],
                 passedExpectations: []
             };
             protractorUtil.testResults.push(protractorUtil.test);
         },
         specDone: function(result) {
-            if (context.config.screenshotOnSpec != 'none') {
-                protractorUtil.takeScreenshotOnSpecDone(result, context, protractorUtil.test); //exec async operation
-            }
+            protractorUtil.takeOnSpecDone(result, context, protractorUtil.test); //exec async operation
 
             //calculate total fails, success and so on
             if (!protractorUtil.stat[result.status]) {
@@ -418,7 +479,7 @@ protractorUtil.failTestOnErrorLog = function(context) {
 };
 
 /**
- * Initialize configurtion
+ * Initialize configuration
  */
 protractorUtil.prototype.setup = function() {
     var defaultSettings = {
@@ -426,8 +487,10 @@ protractorUtil.prototype.setup = function() {
         clearFoldersBeforeTest: true,
         withLogs: true,
         screenshotOnExpect: 'failure+success',
+        htmlOnExpect: 'failure',
         verbose: 'info',
         screenshotOnSpec: 'failure+success',
+        htmlOnSpec: 'failure',
         pauseOn: 'never',
         imageToAscii: 'failure',
         imageToAsciiOpts: {
@@ -458,6 +521,14 @@ protractorUtil.prototype.setup = function() {
             console.error(err);
         } else {
             protractorUtil.logDebug(self.config.screenshotPath + '/screenshots' + ' folder created!');
+        }
+    });
+
+    mkdirp.sync(this.config.screenshotPath + '/htmls', function(err) {
+        if (err) {
+            console.error(err);
+        } else {
+            protractorUtil.logDebug(self.config.screenshotPath + '/htmls' + ' folder created!');
         }
     });
 

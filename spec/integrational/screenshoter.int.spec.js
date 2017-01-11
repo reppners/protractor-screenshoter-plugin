@@ -552,6 +552,130 @@ describe("Screenshoter running under protractor", function() {
         });
     });
 
+    describe("raw html snapshots support", function() {
+
+        beforeAll(function() {
+            runProtractorWithConfig('htmlSnapshots.js');
+        });
+
+        it("should generate report.js", function(done) {
+            fs.readFile('.tmp/htmlSnapshots/report.js', 'utf8', function(err, data) {
+                if (err) {
+                    return done.fail(err);
+                }
+                expect(data).toContain("angular.module('reporter').constant('data'");
+
+                var report = getReportAsJson(data);
+                expect(report.stat.passed).toBe(1);
+                expect(report.generatedOn).toBeDefined();
+                expect(report.ci).toBeDefined();
+                expect(report.ci.build).toBeDefined();
+                expect(report.ci.tag).toBeDefined();
+                expect(report.ci.sha).toBeDefined();
+                expect(report.ci.branch).toBeDefined();
+                expect(report.ci.name).toBeDefined();
+
+                expect(report.tests.length).toBe(1);
+                expect(report.tests[0].specLogs.length).toBe(0);
+                expect(report.tests[0].specScreenshots.length).toBe(2);
+                expect(report.tests[0].specHtmls.length).toBe(2);
+
+                expect(report.tests[0].specHtmls[0]).toBeDefined();
+                expect(report.tests[0].specHtmls[0].file).toBeDefined();
+                expect(report.tests[0].specHtmls[0].browser).toBe('first');
+                expect(report.tests[0].specHtmls[0].when).toBeDefined();
+
+                expect(report.tests[0].specHtmls[1]).toBeDefined();
+                expect(report.tests[0].specHtmls[1].file).toBeDefined();
+                expect(report.tests[0].specHtmls[1].browser).toBe('second');
+                expect(report.tests[0].specHtmls[1].when).toBeDefined();
+
+                expect(report.tests[0].specScreenshots[0].img).toBeDefined();
+                expect(report.tests[0].specScreenshots[0].browser).toBe('first');
+                expect(report.tests[0].specScreenshots[0].when).toBeDefined();
+
+                expect(report.tests[0].specScreenshots[1].img).toBeDefined();
+                expect(report.tests[0].specScreenshots[1].browser).toBe('second');
+                expect(report.tests[0].specScreenshots[1].when).toBeDefined();
+
+                expect(report.tests[0].failedExpectations.length).toBe(0);
+                expect(report.tests[0].passedExpectations.length).toBe(2);
+
+
+                expect(report.tests[0].failedExpectations.length).toBe(0);
+                expect(report.tests[0].passedExpectations.length).toBe(2);
+                expect(report.tests[0].passedExpectations[0].logs.length).toBeLessThan(2);
+                expect(report.tests[0].passedExpectations[0].screenshots.length).toBe(2);
+                expect(report.tests[0].passedExpectations[0].htmls.length).toBe(2);
+
+                expect(report.tests[0].passedExpectations[0].htmls[0].file).toBeDefined();
+                expect(report.tests[0].passedExpectations[0].htmls[0].browser).toBe('first');
+                expect(report.tests[0].passedExpectations[0].htmls[0].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[0].htmls[1].file).toBeDefined();
+                expect(report.tests[0].passedExpectations[0].htmls[1].browser).toBe('second');
+                expect(report.tests[0].passedExpectations[0].htmls[1].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[1].htmls[0].file).toBeDefined();
+                expect(report.tests[0].passedExpectations[1].htmls[0].browser).toBe('first');
+                expect(report.tests[0].passedExpectations[1].htmls[0].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[1].htmls[1].file).toBeDefined();
+                expect(report.tests[0].passedExpectations[1].htmls[1].browser).toBe('second');
+                expect(report.tests[0].passedExpectations[1].htmls[1].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[0].screenshots[0].img).toBeDefined();
+                expect(report.tests[0].passedExpectations[0].screenshots[0].browser).toBe('first');
+                expect(report.tests[0].passedExpectations[0].screenshots[0].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[0].screenshots[1].img).toBeDefined();
+                expect(report.tests[0].passedExpectations[0].screenshots[1].browser).toBe('second');
+                expect(report.tests[0].passedExpectations[0].screenshots[1].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[1].screenshots[0].img).toBeDefined();
+                expect(report.tests[0].passedExpectations[1].screenshots[0].browser).toBe('first');
+                expect(report.tests[0].passedExpectations[1].screenshots[0].when).toBeDefined();
+
+                expect(report.tests[0].passedExpectations[1].screenshots[1].img).toBeDefined();
+                expect(report.tests[0].passedExpectations[1].screenshots[1].browser).toBe('second');
+                expect(report.tests[0].passedExpectations[1].screenshots[1].when).toBeDefined();
+
+                done();
+            });
+        });
+
+        it("should generate screenshots", function(done) {
+            fs.readdir('.tmp/htmlSnapshots/screenshots', function(err, items) {
+                if (err) {
+                    return done.fail(err);
+                }
+                expect(items.length).toEqual(6);
+                done();
+            });
+        });
+
+        it("should generate raw html files", function(done) {
+            fs.readdir('.tmp/htmlSnapshots/htmls', function(err, items) {
+                if (err) {
+                    return done.fail(err);
+                }
+                expect(items.length).toEqual(6);
+                done();
+            });
+        });
+
+        it("should install reporter", function(done) {
+            fs.readFile('.tmp/htmlSnapshots/index.html', 'utf8', function(err, data) {
+                if (err) {
+                    return done.fail(err);
+                }
+                expect(data).toContain('ui-view');
+                expect(data).toContain('html');
+                done();
+            });
+        });
+    });
+
     describe("failTestOnErrorLog", function() {
 
         beforeAll(function() {
