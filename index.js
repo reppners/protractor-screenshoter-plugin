@@ -262,7 +262,7 @@ protractorUtil.takeOnSpecDone = function(result, context, test) {
         });
     }
 
-    if (context.config.withLogs) {
+    if (context.config.screenshotOnSpec != 'none' && context.config.withLogs) {
         protractorUtil.takeLogs(context, function(logs, browserName, done) {
             test.specLogs.push({
                 logs: logs,
